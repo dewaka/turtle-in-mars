@@ -102,17 +102,19 @@ impl Turtle {
     }
 
     fn make_move(&mut self, mars: &mut Mars, direction: Direction) {
-        match direction {
-            Direction::Left => self.orientation = self.orientation.with_direction(direction),
-            Direction::Right => self.orientation = self.orientation.with_direction(direction),
-            Direction::Forward => {
-                let new_pos = self.advanced_pos();
-                if mars.in_bounds(new_pos) {
-                    self.pos = new_pos;
-                } else if !mars.scent_seen(new_pos) {
-                    self.pos = new_pos;
-                    self.lost = true;
-                    mars.add_scent(new_pos);
+        if !self.lost {
+            match direction {
+                Direction::Left => self.orientation = self.orientation.with_direction(direction),
+                Direction::Right => self.orientation = self.orientation.with_direction(direction),
+                Direction::Forward => {
+                    let new_pos = self.advanced_pos();
+                    if mars.in_bounds(new_pos) {
+                        self.pos = new_pos;
+                    } else if !mars.scent_seen(new_pos) {
+                        self.pos = new_pos;
+                        self.lost = true;
+                        mars.add_scent(new_pos);
+                    }
                 }
             }
         }
