@@ -177,7 +177,7 @@ impl Turtle {
                     } else if !mars.scent_seen(new_pos) {
                         // this turtle is lost
                         self.lost = true;
-                        // add lost pos to help future turtles
+                        // add lost pos to scents to help future turtles
                         mars.add_scent(new_pos);
                     }
                 }
@@ -221,6 +221,10 @@ impl Mars {
     }
 
     pub fn move_turtle(&mut self, mut turtle: Turtle, direction: &[Direction]) {
+        if !self.in_bounds(turtle.pos) {
+            return;
+        }
+
         for &dir in direction {
             turtle.make_move(self, dir);
             if turtle.lost {
@@ -287,6 +291,15 @@ mod test {
             },
             mars.turtles.get(0).unwrap()
         );
+    }
+
+    #[test]
+    fn test_not_moving_out_of_bounds_turtles() {
+        let mut mars = Mars::new(Pos::new(5, 3));
+        mars.move_turtle(Turtle::new(Pos::new(10, 20), East), &[Direction::Forward]);
+        // We shouldn't have moved out of bounds turtles
+        assert!(mars.turtles.is_empty());
+        assert!(mars.scents.is_empty());
     }
 
     #[test]
