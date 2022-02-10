@@ -1,4 +1,8 @@
 use std::collections::HashSet;
+use std::fmt;
+use std::fmt::Formatter;
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Pos {
@@ -7,8 +11,19 @@ pub struct Pos {
 }
 
 impl Pos {
-    fn new(x: i32, y: i32) -> Self {
+    pub fn new(x: i32, y: i32) -> Self {
         Self { x, y }
+    }
+}
+
+impl FromStr for Pos {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let coords: Vec<&str> = s.trim().split(' ').collect();
+        let x = coords[0].parse::<i32>()?;
+        let y = coords[1].parse::<i32>()?;
+        Ok(Pos::new(x, y))
     }
 }
 
@@ -18,6 +33,33 @@ pub enum Orientation {
     South,
     East,
     West,
+}
+
+impl FromStr for Orientation {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "N" => Ok(Orientation::North),
+            "S" => Ok(Orientation::South),
+            "E" => Ok(Orientation::East),
+            "W" => Ok(Orientation::West),
+            _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for Orientation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let abbr = match self {
+            Orientation::North => "N",
+            Orientation::South => "S",
+            Orientation::East => "E",
+            Orientation::West => "W",
+        };
+
+        write!(f, "{}", abbr)
+    }
 }
 
 impl Orientation {
@@ -85,15 +127,37 @@ impl Direction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Turtle {
     pos: Pos,
     orientation: Orientation,
     lost: bool,
 }
 
+impl fmt::Display for Turtle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.pos.x, self.pos.y, self.orientation)
+    }
+}
+
+impl FromStr for Turtle {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s: Vec<&str> = s.trim().split(' ').collect();
+        if s.len() == 3 {
+            let x = s.get(0).unwrap().parse::<i32>().map_err(|_| ())?;
+            let y = s.get(1).unwrap().parse::<i32>().map_err(|_| ())?;
+            let o = s.get(2).unwrap().parse::<Orientation>().map_err(|_| ())?;
+            Ok(Turtle::new(Pos::new(x, y), o))
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl Turtle {
-    fn new(pos: Pos, orientation: Orientation) -> Self {
+    pub fn new(pos: Pos, orientation: Orientation) -> Self {
         Self {
             pos,
             orientation,
@@ -102,7 +166,7 @@ impl Turtle {
     }
 
     fn make_move(&mut self, mars: &mut Mars, direction: Direction) {
-        if !self.lost {
+        if !self.lost && mars.in_bounds(self.pos) {
             match direction {
                 Direction::Left => self.orientation = self.orientation.with_direction(direction),
                 Direction::Right => self.orientation = self.orientation.with_direction(direction),
@@ -111,8 +175,9 @@ impl Turtle {
                     if mars.in_bounds(new_pos) {
                         self.pos = new_pos;
                     } else if !mars.scent_seen(new_pos) {
-                        self.pos = new_pos;
+                        // this turtle is lost
                         self.lost = true;
+                        // add lost pos to help future turtles
                         mars.add_scent(new_pos);
                     }
                 }
@@ -138,11 +203,51 @@ pub struct Grid {
 
 #[derive(Debug)]
 pub struct Mars {
-    grid: Grid,
-    scents: HashSet<Pos>,
+    grid: Grid,           // Two dimensional grid of Mars
+    turtles: Vec<Turtle>, // Turtles who walked on Mars
+    scents: HashSet<Pos>, // Scents left by turtles
 }
 
 impl Mars {
+    pub fn new(pos: Pos) -> Self {
+        Self {
+            grid: Grid {
+                lower_left: Pos::new(0, 0),
+                upper_right: pos,
+            },
+            turtles: vec![],
+            scents: HashSet::new(),
+        }
+    }
+
+    pub fn move_turtle(&mut self, mut turtle: Turtle, direction: &[Direction]) {
+        for &dir in direction {
+            turtle.make_move(self, dir);
+            if turtle.lost {
+                break;
+            }
+        }
+
+        self.turtles.push(turtle);
+    }
+
+    pub fn report(&self) {
+        for turtle in &self.turtles {
+            Mars::print_turtle(turtle);
+        }
+    }
+
+    fn print_turtle(turtle: &Turtle) {
+        if turtle.lost {
+            println!(
+                "{} {} {} LOST",
+                turtle.pos.x, turtle.pos.y, turtle.orientation
+            )
+        } else {
+            println!("{} {} {}", turtle.pos.x, turtle.pos.y, turtle.orientation)
+        }
+    }
+
     fn in_bounds(&self, pos: Pos) -> bool {
         let lower = self.grid.lower_left;
         let upper = self.grid.upper_right;
@@ -159,64 +264,73 @@ impl Mars {
     }
 }
 
-#[derive(Debug)]
-pub struct TurtleMover {
-    mars: Mars,
-    turtles: Vec<Turtle>,
-}
-
-impl TurtleMover {
-    pub fn new(pos: Pos) -> Self {
-        Self {
-            mars: Mars {
-                grid: Grid {
-                    lower_left: Pos::new(0, 0),
-                    upper_right: pos,
-                },
-                scents: HashSet::new(),
-            },
-            turtles: vec![],
-        }
-    }
-
-    pub fn move_turtle(
-        &mut self,
-        start_pos: Pos,
-        orientation: Orientation,
-        direction: &[Direction],
-    ) {
-        let mut turtle = Turtle::new(start_pos, orientation);
-
-        for &dir in direction {
-            turtle.make_move(&mut self.mars, dir);
-            if turtle.lost {
-                break;
-            }
-        }
-
-        self.turtles.push(turtle);
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::Direction::*;
     use super::Orientation::*;
-    use super::{Direction, Pos, TurtleMover};
+    use super::{Direction, Mars, Pos, Turtle};
 
     #[test]
     fn test_moving_one_turtle() {
-        let mut mover = TurtleMover::new(Pos::new(5, 3));
-        let dir = vec![
-            Right, Forward, Right, Forward, Right, Forward, Right, Forward,
-        ];
-        mover.move_turtle(Pos::new(1, 1), East, &dir);
+        let mut mars = Mars::new(Pos::new(5, 3));
+        mars.move_turtle(
+            Turtle::new(Pos::new(1, 1), East),
+            &Direction::from_string("RFRFRFRF"),
+        );
 
-        assert_eq!(1, mover.turtles.len());
-        let turtle = mover.turtles.get(0).unwrap();
-        assert!(!turtle.lost);
-        assert_eq!(turtle.pos, Pos::new(1, 1));
-        assert_eq!(turtle.orientation, East);
+        assert_eq!(1, mars.turtles.len());
+        assert_eq!(
+            &Turtle {
+                pos: Pos::new(1, 1),
+                orientation: East,
+                lost: false
+            },
+            mars.turtles.get(0).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_moving_three_turtles() {
+        let mut mars = Mars::new(Pos::new(5, 3));
+        mars.move_turtle(
+            Turtle::new(Pos::new(1, 1), East),
+            &Direction::from_string("RFRFRFRF"),
+        );
+        mars.move_turtle(
+            Turtle::new(Pos::new(3, 2), North),
+            &Direction::from_string("FRRFLLFFRRFLL"),
+        );
+        mars.move_turtle(
+            Turtle::new(Pos::new(0, 3), West),
+            &Direction::from_string("LLFFFLFLFL"),
+        );
+
+        assert_eq!(3, mars.turtles.len());
+
+        assert_eq!(
+            &Turtle {
+                pos: Pos::new(1, 1),
+                orientation: East,
+                lost: false
+            },
+            mars.turtles.get(0).unwrap()
+        );
+        assert_eq!(
+            &Turtle {
+                pos: Pos::new(3, 3),
+                orientation: North,
+                lost: true
+            },
+            mars.turtles.get(1).unwrap()
+        );
+        assert_eq!(
+            &Turtle {
+                pos: Pos::new(2, 3),
+                orientation: South,
+                lost: false
+            },
+            mars.turtles.get(2).unwrap()
+        );
     }
 
     #[test]
@@ -231,5 +345,18 @@ mod test {
             Direction::from_string("RFRFRFRF"),
             vec![Right, Forward, Right, Forward, Right, Forward, Right, Forward,]
         );
+    }
+
+    #[test]
+    fn test_turtle_to_string() {
+        assert_eq!(format!("{}", Turtle::new(Pos::new(1, 1), East)), "1 1 E");
+        assert_eq!(format!("{}", Turtle::new(Pos::new(3, 5), West)), "3 5 W");
+        assert_eq!(format!("{}", Turtle::new(Pos::new(8, 10), North)), "8 10 N");
+    }
+
+    #[test]
+    fn test_reading_turtle() {
+        assert_eq!(Turtle::new(Pos::new(3, 4), East), "3 4 E".parse().unwrap());
+        assert_eq!(Turtle::new(Pos::new(5, 8), West), "5 8 W".parse().unwrap());
     }
 }
