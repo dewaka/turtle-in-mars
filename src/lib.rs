@@ -201,6 +201,15 @@ pub struct Grid {
     upper_right: Pos,
 }
 
+impl Grid {
+    fn in_bounds(&self, pos: Pos) -> bool {
+        let lower = self.lower_left;
+        let upper = self.upper_right;
+
+        (pos.x >= lower.x && pos.y >= lower.y) && (pos.x <= upper.x && pos.y <= upper.y)
+    }
+}
+
 #[derive(Debug)]
 pub struct Mars {
     grid: Grid,           // Two dimensional grid of Mars
@@ -253,10 +262,7 @@ impl Mars {
     }
 
     fn in_bounds(&self, pos: Pos) -> bool {
-        let lower = self.grid.lower_left;
-        let upper = self.grid.upper_right;
-
-        (pos.x >= lower.x && pos.y >= lower.y) && (pos.x <= upper.x && pos.y <= upper.y)
+        self.grid.in_bounds(pos)
     }
 
     fn add_scent(&mut self, pos: Pos) {
