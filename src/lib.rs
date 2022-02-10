@@ -146,9 +146,9 @@ impl FromStr for Turtle {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s: Vec<&str> = s.trim().split(' ').collect();
         if s.len() == 3 {
-            let x = s.get(0).unwrap().parse::<i32>().map_err(|_| ())?;
-            let y = s.get(1).unwrap().parse::<i32>().map_err(|_| ())?;
-            let o = s.get(2).unwrap().parse::<Orientation>().map_err(|_| ())?;
+            let x = s[0].parse::<i32>().map_err(|_| ())?;
+            let y = s[1].parse::<i32>().map_err(|_| ())?;
+            let o = s[2].parse::<Orientation>().map_err(|_| ())?;
             Ok(Turtle::new(Pos::new(x, y), o))
         } else {
             Err(())
