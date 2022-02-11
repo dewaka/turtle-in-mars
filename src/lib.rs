@@ -1,8 +1,23 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Formatter;
-use std::num::ParseIntError;
 use std::str::FromStr;
+
+use thiserror::Error;
+
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum AppError {
+    #[error("invalid direction disconnected")]
+    InvalidDirection(String),
+    #[error("orientation is not valid")]
+    InvalidOrientation(String),
+    #[error("position is not valid")]
+    InvalidPosition(String),
+    #[error("turtle is not valid")]
+    InvalidTurtle(String),
+    #[error("io error")]
+    IOError,
+}
 
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Pos {
@@ -17,12 +32,16 @@ impl Pos {
 }
 
 impl FromStr for Pos {
-    type Err = ParseIntError;
+    type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let coords: Vec<&str> = s.trim().split(' ').collect();
-        let x = coords[0].parse::<i32>()?;
-        let y = coords[1].parse::<i32>()?;
+        let x = coords[0]
+            .parse::<i32>()
+            .map_err(|_| AppError::InvalidPosition(format!("invalid x: {}", coords[0])))?;
+        let y = coords[1]
+            .parse::<i32>()
+            .map_err(|_| AppError::InvalidPosition(format!("invalid y: {}", coords[1])))?;
         Ok(Pos::new(x, y))
     }
 }
@@ -36,7 +55,7 @@ pub enum Orientation {
 }
 
 impl FromStr for Orientation {
-    type Err = ();
+    type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim() {
@@ -44,7 +63,10 @@ impl FromStr for Orientation {
             "S" => Ok(Orientation::South),
             "E" => Ok(Orientation::East),
             "W" => Ok(Orientation::West),
-            _ => Err(()),
+            e => Err(AppError::InvalidOrientation(format!(
+                "invalid orientation: {}",
+                e
+            ))),
         }
     }
 }
@@ -141,17 +163,23 @@ impl fmt::Display for Turtle {
 }
 
 impl FromStr for Turtle {
-    type Err = ();
+    type Err = AppError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s: Vec<&str> = s.trim().split(' ').collect();
-        if s.len() == 3 {
-            let x = s[0].parse::<i32>().map_err(|_| ())?;
-            let y = s[1].parse::<i32>().map_err(|_| ())?;
-            let o = s[2].parse::<Orientation>().map_err(|_| ())?;
+        let t: Vec<&str> = s.trim().split(' ').collect();
+        if t.len() == 3 {
+            let x = t[0].parse::<i32>().map_err(|_| {
+                AppError::InvalidTurtle(format!("invalid position x for turtle: {}", t[0]))
+            })?;
+            let y = t[1].parse::<i32>().map_err(|_| {
+                AppError::InvalidTurtle(format!("invalid position y for turtle: {}", t[1]))
+            })?;
+            let o = t[2].parse::<Orientation>().map_err(|_| {
+                AppError::InvalidTurtle(format!("invalid orientation for turtle: {}", t[2]))
+            })?;
             Ok(Turtle::new(Pos::new(x, y), o))
         } else {
-            Err(())
+            Err(AppError::InvalidTurtle(format!("invalid turtle: {}", s)))
         }
     }
 }
@@ -276,9 +304,10 @@ impl Mars {
 
 #[cfg(test)]
 mod test {
+    use super::AppError::*;
     use super::Direction::*;
     use super::Orientation::*;
-    use super::{Direction, Mars, Pos, Turtle};
+    use super::{Direction, Mars, Orientation, Pos, Turtle};
 
     #[test]
     fn test_moving_one_turtle() {
@@ -374,8 +403,39 @@ mod test {
     }
 
     #[test]
-    fn test_reading_turtle() {
-        assert_eq!(Turtle::new(Pos::new(3, 4), East), "3 4 E".parse().unwrap());
-        assert_eq!(Turtle::new(Pos::new(5, 8), West), "5 8 W".parse().unwrap());
+    fn test_parsing_turtle() {
+        assert_eq!(Ok(Turtle::new(Pos::new(3, 4), East)), "3 4 E".parse());
+        assert_eq!(Ok(Turtle::new(Pos::new(5, 8), West)), "5 8 W".parse());
+        assert_eq!(
+            Err(InvalidTurtle(format!("invalid position x for turtle: X"))),
+            "X Y W".parse::<Turtle>()
+        );
+
+        assert_eq!(
+            Err(InvalidTurtle(format!("invalid orientation for turtle: Z"))),
+            "3 4 Z".parse::<Turtle>()
+        );
+    }
+
+    #[test]
+    fn test_parsing_pos() {
+        assert_eq!(Ok(Pos::new(3, 4)), "3 4".parse::<Pos>());
+        assert_eq!(
+            Err(InvalidPosition(format!("invalid y: Z"))),
+            "3 Z".parse::<Pos>()
+        );
+        assert_eq!(
+            Err(InvalidPosition(format!("invalid x: Y"))),
+            "Y 4".parse::<Pos>()
+        );
+    }
+
+    #[test]
+    fn test_parsing_orientation() {
+        assert_eq!(Ok(Orientation::East), "E".parse::<Orientation>());
+        assert_eq!(
+            Err(InvalidOrientation(format!("invalid orientation: X"))),
+            "X".parse::<Orientation>()
+        );
     }
 }
