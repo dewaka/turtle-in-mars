@@ -7,8 +7,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum AppError {
-    #[error("invalid direction disconnected")]
-    InvalidDirection(String),
     #[error("orientation is not valid")]
     InvalidOrientation(String),
     #[error("position is not valid")]
