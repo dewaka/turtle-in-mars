@@ -1,22 +1,22 @@
-use crate::lib::{AppError, Direction, Mars, Pos, Turtle};
+use crate::lib::{AppError, Direction, Mars};
 use std::io;
-use std::io::{BufRead, StdinLock};
+use std::str::FromStr;
 
 mod lib;
 
-fn read_pos(mut stdin: StdinLock) -> Result<Pos, AppError> {
+fn read<T, E>() -> Result<T, E>
+where
+    T: FromStr<Err = E>,
+    E: From<AppError>,
+{
+    let stdin = io::stdin();
     let mut line = String::new();
     stdin.read_line(&mut line).map_err(|_| AppError::IOError)?;
-    line.parse::<Pos>()
+    line.parse::<T>()
 }
 
-fn read_turtle(mut stdin: StdinLock) -> Result<Turtle, AppError> {
-    let mut line = String::new();
-    stdin.read_line(&mut line).map_err(|_| AppError::IOError)?;
-    line.parse::<Turtle>()
-}
-
-fn read_directions(mut stdin: StdinLock) -> Result<Vec<Direction>, AppError> {
+fn read_directions() -> Result<Vec<Direction>, AppError> {
+    let stdin = io::stdin();
     let mut res = String::new();
     stdin.read_line(&mut res).map_err(|_| AppError::IOError)?;
     if res.is_empty() {
@@ -29,16 +29,13 @@ fn read_directions(mut stdin: StdinLock) -> Result<Vec<Direction>, AppError> {
 }
 
 fn move_turtle(mars: &mut Mars) -> Result<(), AppError> {
-    let stdin = io::stdin();
-    let turtle = read_turtle(stdin.lock())?;
-    let dirs = read_directions(stdin.lock())?;
+    let turtle = read()?;
+    let dirs: Vec<Direction> = read_directions()?;
     Ok(mars.move_turtle(turtle, &dirs))
 }
 
 fn main() {
-    let stdin = io::stdin();
-
-    let upper_bound = read_pos(stdin.lock());
+    let upper_bound = read();
     if upper_bound.is_err() {
         return;
     }
